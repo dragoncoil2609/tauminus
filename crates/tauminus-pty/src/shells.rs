@@ -59,10 +59,7 @@ pub fn known_shells() -> ShellListing {
 /// `0x8000001B`) is not, so the alias stays.
 #[cfg(any(windows, test))]
 fn is_program(path: &std::path::Path) -> bool {
-    path.is_file()
-        || path
-            .symlink_metadata()
-            .is_ok_and(|meta| !meta.is_dir() && !meta.file_type().is_symlink())
+    path.is_file() || path.symlink_metadata().is_ok_and(|meta| !meta.is_dir())
 }
 
 /// How long `wsl.exe --list` may take before it is stopped.
