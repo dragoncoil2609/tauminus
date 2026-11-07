@@ -21,7 +21,9 @@ mod links;
 mod mosh;
 mod notices;
 mod recordings;
+mod secrets;
 mod serial;
+mod shells;
 mod snippets;
 mod ssh;
 mod sync;
@@ -56,6 +58,7 @@ use tracing_subscriber::EnvFilter;
 pub fn specta_builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
     tauri_specta::Builder::<R>::new().commands(tauri_specta::collect_commands![
         commands::session_open,
+        shells::local_shells,
         commands::session_write,
         fill::session_fill_offer,
         fill::session_fill_password,
@@ -230,10 +233,7 @@ pub(crate) fn install<R: tauri::Runtime>(app: &tauri::App<R>, paths: Paths) {
             .unwrap_or_else(|| config_dir.join("received"))
             .join("Tauminus"),
     ));
-    app.manage(LocalShells::new(
-        Arc::new(NativePtyLauncher),
-        Arc::clone(&sessions),
-    ));
+    manage_local_shells(app, &sessions);
     app.manage(Arc::new(ssh::PromptBroker::default()));
     app.manage(clipboard::Clipboard::default());
     app.manage(notices::Notices::default());
@@ -270,26 +270,7 @@ pub(crate) fn install<R: tauri::Runtime>(app: &tauri::App<R>, paths: Paths) {
         }
     });
     manage_libraries(app, &config_dir);
-    let backend = FileVaultBackend::new(
-        VaultFile::new(config_dir.join("vault.json")),
-        Arc::new(OsKeychain::new()),
-    );
-    let presence = Arc::new(tauminus_presence::OsPresence::new());
-    // Windows Hello's prompt opens over the app's window.
-    #[cfg(windows)]
-    if let Some(hwnd) = app
-        .get_webview_window("main")
-        .and_then(|window| window.hwnd().ok())
-    {
-        presence.set_window(hwnd.0 as isize);
-    }
-    let vault = tauri::async_runtime::block_on(async {
-        Vault::with_presence(
-            Arc::new(backend),
-            tauminus_app::vault::DEFAULT_IDLE,
-            presence,
-        )
-    });
+    let vault = open_vault(app, &config_dir);
     manage_history(app, &vault, &config_dir);
     app.manage(Arc::new(tauminus_app::recording::Recordings::new(
         Arc::new(tauminus_store::FileRecordingStore::new(
@@ -322,6 +303,37 @@ pub(crate) fn install<R: tauri::Runtime>(app: &tauri::App<R>, paths: Paths) {
 }
 
 /// The command history, sealed to the vault.
+/// The vault, with the OS's presence check and the password managers'
+/// CLIs.
+fn open_vault<R: tauri::Runtime>(app: &tauri::App<R>, config_dir: &std::path::Path) -> Arc<Vault> {
+    let backend = FileVaultBackend::new(
+        VaultFile::new(config_dir.join("vault.json")),
+        Arc::new(OsKeychain::new()),
+    );
+    let presence = Arc::new(tauminus_presence::OsPresence::new());
+    // Windows Hello's prompt opens over the app's window.
+    #[cfg(windows)]
+    if let Some(hwnd) = app
+        .get_webview_window("main")
+        .and_then(|window| window.hwnd().ok())
+    {
+        presence.set_window(hwnd.0 as isize);
+    }
+    let vault = tauri::async_runtime::block_on(async {
+        Vault::with_presence(
+            Arc::new(backend),
+            tauminus_app::vault::DEFAULT_IDLE,
+            presence,
+        )
+    });
+    // Secrets from password managers (ADR 0035): read through their own
+    // CLIs, and a new reference only once the user allows it. A consent
+    // managed already (by tests) stands.
+    vault.set_secret_source(Arc::new(tauminus_secrets::ManagerClis::new()));
+    app.manage::<secrets::Consent>(Arc::new(secrets::DialogConsent(app.handle().clone())));
+    vault
+}
+
 fn manage_history<R: tauri::Runtime>(
     app: &tauri::App<R>,
     vault: &Arc<Vault>,
@@ -382,6 +394,15 @@ fn manage_sync<R: tauri::Runtime>(
     let state = sync::SyncState::new(service);
     sync::schedule(&state);
     app.manage(state);
+}
+
+/// Shells on this computer: the default one, and the others it has by id.
+fn manage_local_shells<R: tauri::Runtime>(app: &tauri::App<R>, sessions: &Arc<SessionManager>) {
+    app.manage(LocalShells::new(
+        Arc::new(NativePtyLauncher),
+        Arc::clone(sessions),
+    ));
+    app.manage(shells::ShellCatalog::default());
 }
 
 /// The session kinds that reach other machines: serial ports, Telnet,
