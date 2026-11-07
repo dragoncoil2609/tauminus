@@ -107,9 +107,8 @@ impl ShellCatalog {
         let _one = self.listing.lock().unwrap_or_else(PoisonError::into_inner);
         if self.generation.load(Ordering::SeqCst) != seen {
             let (shell, settled) = self.last_answer(id);
-            if settled {
-                return shell;
-            }
+            let _ = settled;
+            return shell;
         }
         let (shells, _) = self.list_holding_lock();
         shells

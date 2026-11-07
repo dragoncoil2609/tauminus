@@ -62,7 +62,7 @@ fn is_program(path: &std::path::Path) -> bool {
     path.is_file()
         || path
             .symlink_metadata()
-            .is_ok_and(|meta| !meta.is_dir() && !meta.file_type().is_symlink())
+            .is_ok_and(|meta| !meta.is_dir())
 }
 
 /// How long `wsl.exe --list` may take before it is stopped.
