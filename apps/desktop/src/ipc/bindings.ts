@@ -9,10 +9,16 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	/**
-	 *  Opens a local shell. Output arrives on `on_output`, and `on_exit` fires once
+	 *  Opens a local shell: the platform default, or the one `local_shells`
+	 *  listed as `shell`. Output arrives on `on_output`, and `on_exit` fires once
 	 *  when the shell ends.
 	 */
-	sessionOpen: (size: GridSize, onOutput: Channel<ArrayBuffer>, onExit: Channel<SessionExit>) => typedError<SessionHandle, CommandError>(__TAURI_INVOKE("session_open", { size, onOutput, onExit })),
+	sessionOpen: (size: GridSize, shell: string | null, onOutput: Channel<ArrayBuffer>, onExit: Channel<SessionExit>) => typedError<SessionHandle, CommandError>(__TAURI_INVOKE("session_open", { size, shell, onOutput, onExit })),
+	/**
+	 *  The shells this computer has besides the default, found again on each
+	 *  call so one installed since shows up. Empty off Windows.
+	 */
+	localShells: () => typedError<LocalShellsView, CommandError>(__TAURI_INVOKE("local_shells")),
 	/**  Sends text input: keystrokes, paste, or terminal replies. */
 	sessionWrite: (id: SessionHandle, data: string) => typedError<null, CommandError>(__TAURI_INVOKE("session_write", { id, data })),
 	/**
@@ -626,6 +632,11 @@ export type ErrorCode = "invalid_argument" | "not_found" | "limit_reached" | "la
 "connect_failed" | 
 /**  The host key differs from the one on record. Never offered for trust. */
 "host_key_changed" | "host_key_revoked" | "auth_failed" | 
+/**
+ *  A password manager did not give an identity's secret: it is locked,
+ *  signed out, or its CLI is missing.
+ */
+"secret_unavailable" | 
 /**  The user declined a prompt or closed it. */
 "cancelled" | "protocol_error" | 
 /**  The saved hosts could not be read or written. */
@@ -888,6 +899,11 @@ export type IdentityEdit = {
 	generate?: KeyKindSpec | null,
 	/**  Whether this device shares it through sync; left out keeps it. */
 	sync?: boolean | null,
+	/**
+	 *  Where a password manager holds a secret; left out keeps them. A new
+	 *  one is read only once the user allows it in a system dialog.
+	 */
+	references?: SecretRefsSpec | null,
 };
 
 /**  An identity as the view sees it: no secret, only whether one is stored. */
@@ -900,6 +916,8 @@ export type IdentityView = {
 	publicKey: string | null,
 	/**  This device shares it through sync. */
 	sync: boolean,
+	/**  Where a password manager holds a secret: names only. */
+	references: SecretRefsSpec,
 };
 
 /**  Where the hosts come from. */
@@ -941,6 +959,22 @@ export type Listing = {
 	path: string,
 	parent: string | null,
 	entries: EntryView[],
+};
+
+/**  A shell a local tab can open besides the default, by `id`. */
+export type LocalShellView = {
+	id: string,
+	name: string,
+};
+
+/**  The shells a local tab can open besides the default. */
+export type LocalShellsView = {
+	shells: LocalShellView[],
+	/**
+	 *  False when WSL did not answer in time: its distributions may be
+	 *  missing, not gone.
+	 */
+	complete: boolean,
 };
 
 export type ParitySpec = "none" | "odd" | "even";
@@ -1064,6 +1098,22 @@ export type S3Input = {
 	prefix?: string,
 	keyId: string,
 	secret: string,
+};
+
+/**  Where a password manager holds one secret. */
+export type SecretRefSpec = 
+/**  `op://vault/item/[section/]field`. */
+{ manager: "onePassword"; reference: string } | 
+/**  A Bitwarden item's id. */
+{ manager: "bitwarden"; item: string } | 
+/**  A field in HashiCorp Vault's KV engine. */
+{ manager: "vault"; address: string; mount: string; path: string; field: string };
+
+/**  An identity's references, by slot. */
+export type SecretRefsSpec = {
+	password?: SecretRefSpec | null,
+	privateKey?: SecretRefSpec | null,
+	passphrase?: SecretRefSpec | null,
 };
 
 /**  A host as the user saw it. */

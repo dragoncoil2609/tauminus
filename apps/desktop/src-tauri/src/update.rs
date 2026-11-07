@@ -177,10 +177,13 @@ async fn download(
             .await;
         bytes.map(|bytes| (update, bytes))
     });
+    let mut task = task;
     loop {
-        tokio::time::sleep(WATCH).await;
-        if task.inner().is_finished() {
-            break;
+        // Back as soon as the download ends; between, a look for a stall.
+        if let Ok(joined) = tokio::time::timeout(WATCH, &mut task).await {
+            return joined
+                .map_err(|e| CommandError::new(ErrorCode::Internal, e.to_string()))?
+                .map_err(|e| failed(&e));
         }
         let quiet = elapsed(started).saturating_sub(last.load(Ordering::Relaxed));
         if quiet > u64::try_from(STALL.as_millis()).unwrap_or(u64::MAX) {
@@ -191,32 +194,7 @@ async fn download(
             ));
         }
     }
-    task.await
-        .map_err(|e| CommandError::new(ErrorCode::Internal, e.to_string()))?
-        .map_err(|e| failed(&e))
 }
 
 #[cfg(test)]
-mod tests {
-    use super::shown;
-
-    #[test]
-    fn release_text_keeps_its_lines_and_loses_what_could_mislead() {
-        assert_eq!(shown("fix\n\u{1b}[31mred\u{202e}x", 100), "fix\n[31mredx");
-        assert_eq!(shown("abcdef", 3), "abc…");
-        assert_eq!(shown("abc", 3), "abc");
-        // Only what is kept counts toward the cut.
-        assert_eq!(shown("abc\u{1b}", 3), "abc");
-    }
-
-    #[test]
-    fn a_download_comes_from_the_project_s_releases() {
-        let url = |s: &str| tauri::Url::parse(s).unwrap();
-        assert!(super::trusted_source(&url(
-            "https://github.com/KKloudTarus/tauminus/releases/download/v1/x.AppImage"
-        )));
-        // Debug builds test against a local server; release builds never.
-        let local = super::trusted_source(&url("http://127.0.0.1:8099/x"));
-        assert_eq!(local, cfg!(debug_assertions));
-    }
-}
+mod tests;
