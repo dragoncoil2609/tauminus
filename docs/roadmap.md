@@ -201,7 +201,7 @@ Goal: Termius Pro sync without a Termius account.
 
 - [x] Two devices edit the same host offline, then sync without data loss: both fields kept, or for one field both values shown as a clash (tests: `two_devices_edit_one_host_offline_and_sync_without_losing_either`, `the_device_whose_value_lost_is_told_on_its_next_sync`)
 - [x] Sync target holds only ciphertext (tests: `the_target_holds_only_ciphertext` on a folder, and every object of a git remote through `git cat-file --batch-all-objects`)
-- [ ] Update signature check rejects a tampered package (test)
+- [x] Update signature check rejects a tampered package (test: `a_bundle_installs_only_as_it_was_signed_for_its_version`, through the plugin's check and download with the settings in `tauri.conf.json`: a changed byte, a bundle signed for another version, a signature naming no version, and another key are each refused)
 
 ## v0.6: Tauminus Hub
 
@@ -211,7 +211,11 @@ Goal: Termius Team and Business parity, self-hosted.
 
 - [ ] Hub server in Rust, single binary plus Postgres, Docker image
 - [ ] Team vaults with roles (view, edit, admin), share hosts with or without credentials
+  - [x] The protocol, `tauminus-team`: an admin-signed membership log each device verifies from its first entry, epoch keys sealed to each device, a separate secrets key for members granted credentials, and items signed by their writer and refused from a member who could only view (ADR 0034)
+  - [ ] Served by the Hub and used from the desktop
 - [ ] Revoke access with vault key rotation
+  - [x] Removing a member or a device starts an epoch whose keys none of their devices holds (ADR 0034)
+  - [ ] Through the Hub, with the credentials to change listed in the app
 - [ ] Require 2FA for members
 - [ ] OIDC login on the client; SAML on the Hub
 - [ ] SCIM provisioning
@@ -224,7 +228,11 @@ Goal: Termius Team and Business parity, self-hosted.
 ### Exit criteria
 
 - [ ] Revoked member cannot decrypt data written after the revoke (test)
+  - [x] On the protocol: `a_revoked_member_cannot_open_what_is_written_after_the_revoke`, the member holding every key it had and everything the Hub stores
+  - [ ] Again through the Hub
 - [ ] Hub operator cannot read vault contents (threat model doc plus test)
+  - [x] On the protocol: ADR 0034, and `the_hub_holds_only_ciphertext`, which looks for each canary and key in every stored byte
+  - [ ] Again through the Hub, in its database and logs
 - [ ] Security review of the Hub and the sharing relay
 
 ## v1.0 and later
@@ -233,7 +241,9 @@ Goal: Termius Team and Business parity, self-hosted.
 - [ ] iOS and Android through Tauri 2: extended keyboard, gestures, reconnect on resume
 - [ ] Kerberos/GSSAPI, PKCS#11 smart cards, short-lived certificates from Vault or step-ca
 - [ ] Kubernetes exec and Docker exec as connection types
-- [ ] Credentials from 1Password, Bitwarden, HashiCorp Vault
+- [x] Credentials from 1Password, Bitwarden, HashiCorp Vault
+  - [x] An identity's password, key or passphrase named in the manager and read through its own CLI (`op`, `bw`, `vault`) only once the server's key is accepted and a method spends it; no manager token kept; a new reference only after the user's yes in a system dialog (ADR 0035; checked live against Vault 1.20.4, KV 1 and 2)
+  - [x] Setting references from the identity editor, per slot, with the same system dialog (checked live: a key and its passphrase from a dev Vault signed in to a scratch sshd)
 - [ ] X11 forwarding
 - [ ] RDP and VNC
 - [ ] Windows code signing; Homebrew, winget, Flathub, AUR
