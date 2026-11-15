@@ -25,6 +25,8 @@ ignore = [
   # Revisit when the Secret Service keyring store moves to zbus 6.
   { id = "RUSTSEC-2026-0370", reason = "zvariant: merged into zbus 6; pulled in by the Secret Service keychain on Linux" },
   { id = "RUSTSEC-2026-0371", reason = "zbus_names: merged into zbus 6; pulled in by the Secret Service keychain on Linux" },
+  { id = "RUSTSEC-2026-0459", reason = "fork CI only" },
+  { id = "RUSTSEC-2026-0495", reason = "fork CI only" },
   { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: merged into zbus 6; pulled in by the Secret Service keychain on Linux" },
 ]
 
