@@ -40,7 +40,6 @@ pub(crate) const DEFAULT_IDENTITIES: &[&str] = &[
     "id_ecdsa_sk",
     "id_ed25519",
     "id_ed25519_sk",
-    "id_mldsa44_ed25519",
     "id_xmss",
     "id_dsa",
 ];
